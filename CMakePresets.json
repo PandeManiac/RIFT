@@ -11,8 +11,8 @@
             "hidden": true,
             "generator": "Ninja",
             "cacheVariables": {
-                "CMAKE_C_COMPILER": "clang",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "CMAKE_C_COMPILER": "/usr/bin/clang",
+                "CMAKE_TOOLCHAIN_FILE": "$penv{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
                 "VCPKG_TARGET_TRIPLET": "x64-linux",
                 "VCPKG_FEATURE_FLAGS": "manifests"
             }
@@ -26,8 +26,8 @@
                 "CMAKE_SYSTEM_NAME": "Windows",
                 "CMAKE_C_COMPILER": "x86_64-w64-mingw32-gcc",
                 "CMAKE_RC_COMPILER": "x86_64-w64-mingw32-windres",
-                "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
-                "VCPKG_TARGET_TRIPLET": "x64-mingw-dynamic",
+                "CMAKE_TOOLCHAIN_FILE": "$penv{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake",
+                "VCPKG_TARGET_TRIPLET": "x64-mingw-static",
                 "VCPKG_FEATURE_FLAGS": "manifests",
                 "VCPKG_APPLOCAL_DEPS": "OFF"
             }
@@ -46,8 +46,7 @@
             "inherits": "linux-base",
             "binaryDir": "${sourceDir}/build/linux-release",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "VCPKG_TARGET_TRIPLET": "x64-linux-release"
+                "CMAKE_BUILD_TYPE": "Release"
             }
         },
 
@@ -65,8 +64,7 @@
             "inherits": "windows-base",
             "binaryDir": "${sourceDir}/build/windows-release",
             "cacheVariables": {
-                "CMAKE_BUILD_TYPE": "Release",
-                "VCPKG_TARGET_TRIPLET": "x64-mingw-static-release"
+                "CMAKE_BUILD_TYPE": "Release"
             }
         }
     ],

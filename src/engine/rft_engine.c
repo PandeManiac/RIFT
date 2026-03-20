@@ -35,6 +35,13 @@
 #define RFT_GPU_QUERY_RING_SIZE 3U
 #define RFT_CAMERA_SPEED_STEP 25.0f
 #define RFT_CAMERA_SPEED_MIN 25.0f
+#define RFT_CHUNK_SHADER_FOG_DISTANCE_LOCATION 5
+#define RFT_CHUNK_SHADER_FOG_COLOR_NEAR_LOCATION 6
+#define RFT_CHUNK_SHADER_FOG_COLOR_FAR_LOCATION 7
+#define RFT_CHUNK_SHADER_FOG_ABERRATION_LOCATION 8
+
+static const vec3s RFT_ATMOSPHERE_FOG_COLOR_NEAR = { { 0.62f, 0.73f, 0.78f } };
+static const vec3s RFT_ATMOSPHERE_FOG_COLOR_FAR  = { { 0.94f, 0.72f, 0.59f } };
 
 struct rft_engine
 {
@@ -148,7 +155,7 @@ static void rft_engine_init(rft_engine* engine)
 	glGenQueries((GLsizei)RFT_GPU_QUERY_RING_SIZE, engine->gpu_time_queries);
 
 	glViewport(0, 0, engine->window.cfg.size.x, engine->window.cfg.size.y);
-	glClearColor(0.1f, 0.15f, 0.2f, 1.0f);
+	glClearColor(0.76f, 0.76f, 0.79f, 1.0f);
 
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -257,6 +264,23 @@ static void rft_engine_frame(rft_engine* engine, float dt)
 
 	rft_shader_set_vec3i(&engine->chunk_shader, 3, cam_chunk.x, cam_chunk.y, cam_chunk.z);
 	rft_shader_set_vec3(&engine->chunk_shader, 4, cam_offset.x, cam_offset.y, cam_offset.z);
+	rft_shader_set_vec4(&engine->chunk_shader,
+						RFT_CHUNK_SHADER_FOG_DISTANCE_LOCATION,
+						rft_default_streamer_cfg.render_distance * 0.42f,
+						rft_default_streamer_cfg.render_distance * 0.92f,
+						1.65f,
+						0.0f);
+	rft_shader_set_vec3(&engine->chunk_shader,
+						RFT_CHUNK_SHADER_FOG_COLOR_NEAR_LOCATION,
+						RFT_ATMOSPHERE_FOG_COLOR_NEAR.x,
+						RFT_ATMOSPHERE_FOG_COLOR_NEAR.y,
+						RFT_ATMOSPHERE_FOG_COLOR_NEAR.z);
+	rft_shader_set_vec3(&engine->chunk_shader,
+						RFT_CHUNK_SHADER_FOG_COLOR_FAR_LOCATION,
+						RFT_ATMOSPHERE_FOG_COLOR_FAR.x,
+						RFT_ATMOSPHERE_FOG_COLOR_FAR.y,
+						RFT_ATMOSPHERE_FOG_COLOR_FAR.z);
+	rft_shader_set_vec4(&engine->chunk_shader, RFT_CHUNK_SHADER_FOG_ABERRATION_LOCATION, 0.28f, 1.9f, 0.65f, 0.0f);
 
 	mat4s view_rte = view;
 

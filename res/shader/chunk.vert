@@ -24,6 +24,7 @@ layout (location = 4) uniform vec3  u_cam_offset;
 flat out uint  v_material;
 flat out vec3  v_normal;
 out vec2       v_uv;
+out vec3       v_view_pos;
 
 const vec2 QUAD_CCW[6] = vec2[](
     vec2(0,0),
@@ -121,6 +122,7 @@ void main()
     v_uv       = q * face_size;
     v_material = material;
     v_normal   = normal;
+    v_view_pos = pos_rel;
 
     gl_Position = u_mvp * vec4(pos_rel, 1.0);
 }

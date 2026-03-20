@@ -31,15 +31,15 @@
         {
             "label": "Linux: Configure Debug",
             "type": "shell",
-            "command": "cmake",
-            "args": ["--preset", "linux-debug", "-DRFT_ENABLE_ASAN=OFF"],
+            "command": "bash",
+            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-debug --fresh -DRFT_ENABLE_ASAN=OFF"],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
         {
             "label": "Linux: Configure Release",
             "type": "shell",
-            "command": "cmake",
-            "args": ["--preset", "linux-release", "-DRFT_ENABLE_ASAN=OFF"],
+            "command": "bash",
+            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-release --fresh -DRFT_ENABLE_ASAN=OFF"],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
 
@@ -109,15 +109,15 @@
         {
             "label": "Windows: Configure Debug",
             "type": "shell",
-            "command": "cmake",
-            "args": ["--preset", "windows-debug", "-DRFT_ENABLE_ASAN=OFF"],
+            "command": "bash",
+            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-debug --fresh -DRFT_ENABLE_ASAN=OFF"],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
         {
             "label": "Windows: Configure Release",
             "type": "shell",
-            "command": "cmake",
-            "args": ["--preset", "windows-release", "-DRFT_ENABLE_ASAN=OFF"],
+            "command": "bash",
+            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-release --fresh -DRFT_ENABLE_ASAN=OFF"],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
 
