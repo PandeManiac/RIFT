@@ -1,6 +1,6 @@
 {
 	"clangd.arguments": [
-    	"--compile-commands-dir=${workspaceFolder}/build/linux-debug"
+    	"--compile-commands-dir=${workspaceFolder}"
   	],
 
   	"cmake.useCMakePresets": "always",

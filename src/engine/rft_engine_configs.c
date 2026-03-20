@@ -19,12 +19,12 @@ const rft_camera_config rft_default_camera_cfg = {
 	.sens  = 0.1f,
 	.fov   = 70.0f,
 	.near  = 0.1f,
-	.far   = 5000.0f,
+	.far   = 10000.0f,
 };
 
 const rft_streamer_config rft_default_streamer_cfg = {
 	.render_distance   = 10000.0f,
-	.near_chunk_radius = 8,
-	.max_chunks		   = 32768,
-	.thread_count	   = 4,
+	.near_chunk_radius = 20,
+	.max_chunks		   = 65536,
+	.thread_count	   = 8,
 };

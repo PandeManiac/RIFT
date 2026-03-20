@@ -9,141 +9,99 @@
             "args": ["-E", "rm", "-rf", "${workspaceFolder}/build"],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
-        {
-            "label": "Linux: Clean Debug",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-debug", "--target", "clean"],
-            "dependsOn": ["Linux: Configure Debug"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
-        {
-            "label": "Linux: Clean Release",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-release", "--target", "clean"],
-            "dependsOn": ["Linux: Configure Release"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
+
+        // ------------------------
+        // Configure (sets active preset)
+        // ------------------------
 
         {
             "label": "Linux: Configure Debug",
             "type": "shell",
             "command": "bash",
-            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-debug --fresh -DRFT_ENABLE_ASAN=OFF"],
+            "args": [
+                "-lc",
+                "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-debug --fresh -DRFT_ENABLE_ASAN=OFF && echo linux-debug > .cmake_preset && ln -sfn build/linux-debug/compile_commands.json compile_commands.json"
+            ],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
         {
             "label": "Linux: Configure Release",
             "type": "shell",
             "command": "bash",
-            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-release --fresh -DRFT_ENABLE_ASAN=OFF"],
+            "args": [
+                "-lc",
+                "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset linux-release --fresh -DRFT_ENABLE_ASAN=OFF && echo linux-release > .cmake_preset && ln -sfn build/linux-release/compile_commands.json compile_commands.json"
+            ],
             "presentation": { "panel": "shared", "reveal": "always" }
-        },
-
-        {
-            "label": "Linux: Build Debug",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-debug"],
-            "dependsOn": ["Linux: Configure Debug"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
-        {
-            "label": "Linux: Build",
-            "dependsOn": ["Linux: Build Debug"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
-
-        {
-            "label": "Linux: Run Debug",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-debug", "--target", "run"],
-            "dependsOn": ["Linux: Configure Debug"],
-            "dependsOrder": "sequence",
-            "presentation": {
-                "panel": "shared",
-                "reveal": "always",
-                "focus": true
-            }
-        },
-        {
-            "label": "Linux: Run",
-            "dependsOn": ["Linux: Run Debug"],
-            "dependsOrder": "sequence",
-            "presentation": {
-                "panel": "shared",
-                "reveal": "always",
-                "focus": true
-            }
-        },
-        {
-            "label": "Linux: Build Release",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-release"],
-            "dependsOn": ["Linux: Configure Release"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
-
-        {
-            "label": "Linux: Run Release",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "linux-release", "--target", "run"],
-            "dependsOn": ["Linux: Configure Release"],
-            "dependsOrder": "sequence",
-            "presentation": {
-                "panel": "shared",
-                "reveal": "always",
-                "focus": true
-            }
         },
 
         {
             "label": "Windows: Configure Debug",
             "type": "shell",
             "command": "bash",
-            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-debug --fresh -DRFT_ENABLE_ASAN=OFF"],
+            "args": [
+                "-lc",
+                "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-debug --fresh -DRFT_ENABLE_ASAN=OFF && echo windows-debug > .cmake_preset && ln -sfn build/windows-debug/compile_commands.json compile_commands.json"
+            ],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
         {
             "label": "Windows: Configure Release",
             "type": "shell",
             "command": "bash",
-            "args": ["-lc", "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-release --fresh -DRFT_ENABLE_ASAN=OFF"],
+            "args": [
+                "-lc",
+                "export VCPKG_ROOT=\"${VCPKG_ROOT:-$HOME/vcpkg}\"; cmake --preset windows-release --fresh -DRFT_ENABLE_ASAN=OFF && echo windows-release > .cmake_preset && ln -sfn build/windows-release/compile_commands.json compile_commands.json"
+            ],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        // ------------------------
+        // Build (uses active preset)
+        // ------------------------
+
+        {
+            "label": "Linux: Build",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "cmake --build --preset $(cat .cmake_preset)"
+            ],
+            "group": { "kind": "build", "isDefault": true },
             "presentation": { "panel": "shared", "reveal": "always" }
         },
 
         {
-            "label": "Windows: Build Debug",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "windows-debug"],
-            "dependsOn": ["Windows: Configure Debug"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
-        {
             "label": "Windows: Build",
-            "dependsOn": ["Windows: Build Debug"],
-            "dependsOrder": "sequence",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "cmake --build --preset $(cat .cmake_preset)"
+            ],
             "presentation": { "panel": "shared", "reveal": "always" }
         },
+
+        // ------------------------
+        // Run (build + run, same preset)
+        // ------------------------
+
         {
-            "label": "Windows: Build Release",
+            "label": "Linux: Run",
             "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "windows-release"],
-            "dependsOn": ["Windows: Configure Release"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
+            "command": "bash",
+            "args": [
+                "-lc",
+                "cmake --build --preset $(cat .cmake_preset) --target run"
+            ],
+            "dependsOn": ["Linux: Build"],
+            "group": { "kind": "test", "isDefault": true },
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
         },
 
         {
@@ -152,10 +110,9 @@
             "command": "bash",
             "args": [
                 "-lc",
-                "cd '${workspaceFolder}/build/windows-debug' && env WINEDEBUG=-all MESA_LOG_LEVEL=error LIBGL_DEBUG=quiet wine ./RFT.exe"
+                "cd '${workspaceFolder}/build/$(cat .cmake_preset)' && env WINEDEBUG=-all MESA_LOG_LEVEL=error LIBGL_DEBUG=quiet wine ./RFT.exe"
             ],
-            "dependsOn": ["Windows: Build Debug"],
-            "dependsOrder": "sequence",
+            "dependsOn": ["Windows: Build"],
             "presentation": {
                 "panel": "shared",
                 "reveal": "always",
@@ -163,30 +120,19 @@
             }
         },
 
-        {
-            "label": "Windows: Dist",
-            "type": "shell",
-            "command": "cmake",
-            "args": ["--build", "--preset", "windows-debug"],
-            "dependsOn": ["Windows: Build Debug"],
-            "dependsOrder": "sequence",
-            "presentation": { "panel": "shared", "reveal": "always" }
-        },
+        // ------------------------
+        // Clean
+        // ------------------------
 
         {
-            "label": "Windows: Test Dist",
+            "label": "Linux: Clean",
             "type": "shell",
             "command": "bash",
             "args": [
-                "-c",
-                "cd '${workspaceFolder}/build/windows-debug/dist/RFT' && env WINEDEBUG=-all MESA_LOG_LEVEL=error LIBGL_DEBUG=quiet wine ./RFT.exe"
+                "-lc",
+                "cmake --build --preset $(cat .cmake_preset) --target clean"
             ],
-            "dependsOn": ["Windows: Dist"],
-            "presentation": {
-                "panel": "shared",
-                "reveal": "always",
-                "focus": true
-            }
+            "presentation": { "panel": "shared", "reveal": "always" }
         }
     ]
 }

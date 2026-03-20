@@ -54,27 +54,13 @@ target_include_directories(${PROJECT_NAME} SYSTEM PRIVATE
 
 if (MSVC)
     set_source_files_properties(${VENDOR_SRC}
-        PROPERTIES
-            COMPILE_OPTIONS "/W0"
+        PROPERTIES COMPILE_OPTIONS "/W0"
     )
 
     target_compile_options(${PROJECT_NAME} PRIVATE
-        /W4
-        /wd4068
-        /wd4100
-        /wd4201
-        /wd4204
-        /wd4706
-        /wd4996
-        $<$<CONFIG:Debug>:
-            /Od
-            /Zi
-        >
-        $<$<CONFIG:Release>:
-            /O2
-            /GL
-            /arch:AVX2
-        >
+        /W4 /wd4068 /wd4100 /wd4201 /wd4204 /wd4706 /wd4996
+        $<$<CONFIG:Debug>:/Od /Zi>
+        $<$<CONFIG:Release>:/O2 /GL /arch:AVX2>
     )
 
     target_link_options(${PROJECT_NAME} PRIVATE
@@ -82,74 +68,28 @@ if (MSVC)
     )
 else()
     set_source_files_properties(${VENDOR_SRC}
-        PROPERTIES
-            COMPILE_OPTIONS "-w"
+        PROPERTIES COMPILE_OPTIONS "-w"
     )
 
     target_compile_options(${PROJECT_NAME} PRIVATE
-        -Wall
-        -Wextra
-        -Wpedantic
-        # -Werror
-
-        -Wconversion
-        -Wsign-conversion
-        -Wdouble-promotion
-        -Wfloat-equal
-
-        -Wbad-function-cast
-        -Werror=implicit-function-declaration
-        -Wmissing-prototypes
-        -Wstrict-prototypes
-        -Wold-style-definition
-
-        -Wredundant-decls
-        -Wnested-externs
-
+        -Wall -Wextra -Wpedantic
+        -Wconversion -Wsign-conversion -Wdouble-promotion -Wfloat-equal
+        -Wbad-function-cast -Werror=implicit-function-declaration
+        -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition
+        -Wredundant-decls -Wnested-externs
         -Wshadow
-
-        -Wswitch
-        -Wswitch-enum
-        -Wswitch-default
-        -Wimplicit-fallthrough
-
-        -Wvla
-        -Walloca
-        -Wcast-align
-        -Wcast-qual
-        -Wpointer-arith
-        -Wnull-dereference
-        -Wuninitialized
-        -Wmissing-field-initializers
-
-        -Wundef
-        -Wunused-macros
-        -Wno-unused-macros
-
-        -Wformat=2
-        -Wformat-security
-
+        -Wswitch -Wswitch-enum -Wswitch-default -Wimplicit-fallthrough
+        -Wvla -Walloca -Wcast-align -Wcast-qual -Wpointer-arith
+        -Wnull-dereference -Wuninitialized -Wmissing-field-initializers
+        -Wundef -Wunused-macros -Wno-unused-macros
+        -Wformat=2 -Wformat-security
         -Wwrite-strings
-        # -Wcomma
-
         -Wno-declaration-after-statement
         -Wno-empty-translation-unit
-        $<$<CONFIG:Debug>:
-            -O1
-            -g
-            -fno-omit-frame-pointer
-            -mavx2
-            -mfma
-        >
-        $<$<CONFIG:Release>:
-            -O3
-            -funroll-loops
-            -fmerge-all-constants
-            -falign-functions=64
-            -falign-loops=64
-            -mavx2
-            -mfma
-        >
+        $<$<CONFIG:Debug>:-O1 -g -fno-omit-frame-pointer -mavx2 -mfma>
+        $<$<CONFIG:Release>:-O3 -funroll-loops -fmerge-all-constants
+                             -falign-functions=64 -falign-loops=64
+                             -mavx2 -mfma>
     )
 
     target_link_options(${PROJECT_NAME} PRIVATE
@@ -158,8 +98,7 @@ else()
 
     if (WIN32)
         target_link_options(${PROJECT_NAME} PRIVATE
-            -static
-            -static-libgcc
+            -static -static-libgcc
         )
     endif()
 endif()
@@ -167,8 +106,7 @@ endif()
 if (RFT_ENABLE_ASAN)
     if (NOT MSVC)
         target_compile_options(${PROJECT_NAME} PRIVATE
-            -fno-omit-frame-pointer
-            -fsanitize=address
+            -fno-omit-frame-pointer -fsanitize=address
         )
 
         target_link_options(${PROJECT_NAME} PRIVATE
@@ -201,21 +139,32 @@ add_custom_target(run
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
 
+# ------------------------
+# ✅ SIMPLE & CORRECT RESOURCE COPY
+# ------------------------
+
+add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        ${CMAKE_SOURCE_DIR}/res
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
+)
+
+# ------------------------
+# Existing POST_BUILD (kept)
+# ------------------------
+
 add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rm -f
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/glfw3.dll
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/libcglm-0.dll
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/libjson-c.dll
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/libgcc_s_seh-1.dll
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/libstdc++-6.dll
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/libwinpthread-1.dll
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_SOURCE_DIR}/res
-            $<TARGET_FILE_DIR:${PROJECT_NAME}>/res
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/glfw3.dll
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/libcglm-0.dll
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/libjson-c.dll
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/libgcc_s_seh-1.dll
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/libstdc++-6.dll
+        $<TARGET_FILE_DIR:${PROJECT_NAME}>/libwinpthread-1.dll
     COMMAND ${CMAKE_COMMAND}
-            -DRFT_STAGE_TARGET_FILE=$<TARGET_FILE:${PROJECT_NAME}>
-            -DRFT_STAGE_SOURCE_DIR=$<TARGET_FILE_DIR:${PROJECT_NAME}>
-            -DRFT_STAGE_DIST_DIR=${CMAKE_BINARY_DIR}/dist/RFT
-            -DRFT_STAGE_RES_DIR=${CMAKE_SOURCE_DIR}/res
-            -P ${CMAKE_SOURCE_DIR}/cmake/rft_stage_dist.cmake
+        -DRFT_STAGE_TARGET_FILE=$<TARGET_FILE:${PROJECT_NAME}>
+        -DRFT_STAGE_SOURCE_DIR=$<TARGET_FILE_DIR:${PROJECT_NAME}>
+        -DRFT_STAGE_DIST_DIR=${CMAKE_BINARY_DIR}/dist/RFT
+        -DRFT_STAGE_RES_DIR=${CMAKE_SOURCE_DIR}/res
+        -P ${CMAKE_SOURCE_DIR}/cmake/rft_stage_dist.cmake
 )
