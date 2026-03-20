@@ -1,0 +1,10 @@
+{
+    "tile_size": 16,
+    "layer_count": 4,
+    "materials": {
+        "blackstone": 0,
+        "coarse_dirt": 1,
+        "dirt": 2,
+        "stone": 3
+    }
+}

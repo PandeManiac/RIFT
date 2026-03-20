@@ -1,0 +1,192 @@
+{
+    "version": "2.0.0",
+
+    "tasks": [
+        {
+            "label": "CMake: Clean All",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["-E", "rm", "-rf", "${workspaceFolder}/build"],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Linux: Clean Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-debug", "--target", "clean"],
+            "dependsOn": ["Linux: Configure Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Linux: Clean Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-release", "--target", "clean"],
+            "dependsOn": ["Linux: Configure Release"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Linux: Configure Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--preset", "linux-debug", "-DRFT_ENABLE_ASAN=OFF"],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Linux: Configure Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--preset", "linux-release", "-DRFT_ENABLE_ASAN=OFF"],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Linux: Build Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-debug"],
+            "dependsOn": ["Linux: Configure Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Linux: Build",
+            "dependsOn": ["Linux: Build Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Linux: Run Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-debug", "--target", "run"],
+            "dependsOn": ["Linux: Configure Debug"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
+        },
+        {
+            "label": "Linux: Run",
+            "dependsOn": ["Linux: Run Debug"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
+        },
+        {
+            "label": "Linux: Build Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-release"],
+            "dependsOn": ["Linux: Configure Release"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Linux: Run Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "linux-release", "--target", "run"],
+            "dependsOn": ["Linux: Configure Release"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
+        },
+
+        {
+            "label": "Windows: Configure Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--preset", "windows-debug", "-DRFT_ENABLE_ASAN=OFF"],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Windows: Configure Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--preset", "windows-release", "-DRFT_ENABLE_ASAN=OFF"],
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Windows: Build Debug",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "windows-debug"],
+            "dependsOn": ["Windows: Configure Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Windows: Build",
+            "dependsOn": ["Windows: Build Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+        {
+            "label": "Windows: Build Release",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "windows-release"],
+            "dependsOn": ["Windows: Configure Release"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Windows: Run (Wine)",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-lc",
+                "cd '${workspaceFolder}/build/windows-debug' && env WINEDEBUG=-all MESA_LOG_LEVEL=error LIBGL_DEBUG=quiet wine ./RFT.exe"
+            ],
+            "dependsOn": ["Windows: Build Debug"],
+            "dependsOrder": "sequence",
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
+        },
+
+        {
+            "label": "Windows: Dist",
+            "type": "shell",
+            "command": "cmake",
+            "args": ["--build", "--preset", "windows-debug"],
+            "dependsOn": ["Windows: Build Debug"],
+            "dependsOrder": "sequence",
+            "presentation": { "panel": "shared", "reveal": "always" }
+        },
+
+        {
+            "label": "Windows: Test Dist",
+            "type": "shell",
+            "command": "bash",
+            "args": [
+                "-c",
+                "cd '${workspaceFolder}/build/windows-debug/dist/RFT' && env WINEDEBUG=-all MESA_LOG_LEVEL=error LIBGL_DEBUG=quiet wine ./RFT.exe"
+            ],
+            "dependsOn": ["Windows: Dist"],
+            "presentation": {
+                "panel": "shared",
+                "reveal": "always",
+                "focus": true
+            }
+        }
+    ]
+}

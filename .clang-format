@@ -1,0 +1,56 @@
+BasedOnStyle: Microsoft
+
+UseTab: Always
+IndentWidth: 4
+TabWidth: 4
+
+BreakBeforeBraces: Allman
+BraceWrapping:
+  AfterStruct: true
+  AfterEnum: true
+
+AllowShortFunctionsOnASingleLine: false
+AllowShortBlocksOnASingleLine: false
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+
+# Treat initializer lists like C data tables
+Cpp11BracedListStyle: false
+SpaceBeforeCpp11BracedList: true
+
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+AlignTrailingComments: false
+
+SpaceBeforeParens: ControlStatements
+PointerAlignment: Left
+SpaceAfterCStyleCast: false
+
+IndentCaseLabels: true
+AlignEscapedNewlines: Right
+KeepEmptyLinesAtTheStartOfBlocks: true
+
+ColumnLimit: 160
+
+# Prevent table collapsing
+BinPackParameters: false
+BinPackArguments: false
+BinPackLongBracedList: false
+AllowAllParametersOfDeclarationOnNextLine: false
+AllowAllArgumentsOnNextLine: false
+
+AlwaysBreakAfterReturnType: None
+AlwaysBreakAfterDefinitionReturnType: None
+
+MacroBlockBegin: '^#define'
+MacroBlockEnd: '^$'
+
+AttributeMacros:
+  - ALIGN
+  - HOT
+  - ALWAYS_INLINE
+  - FLATTEN
+  - RESTRICT
+
+StatementMacros:
+  - ASSERT_FATAL
