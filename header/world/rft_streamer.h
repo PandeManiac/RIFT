@@ -46,5 +46,5 @@ void		  rft_streamer_destroy(rft_streamer* streamer);
 
 void rft_streamer_collect_stats(rft_streamer* streamer, rft_streamer_stats* stats);
 
-void rft_streamer_update(rft_streamer* streamer, const rft_camera* camera);
-void rft_streamer_render(rft_streamer* streamer, const rft_camera* camera, vec4s frustum[6], GLuint shader_program);
+void rft_streamer_update(rft_streamer* streamer, const rft_camera* camera, ivec3s world_origin_chunk);
+void rft_streamer_render(rft_streamer* streamer, ivec3s camera_chunk, vec3s camera_offset, vec4s frustum[6], GLuint shader_program);

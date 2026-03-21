@@ -69,7 +69,10 @@ void rft_debug_overlay_update(rft_debug_overlay*		overlay,
 							  int						gpu_valid,
 							  const rft_streamer_stats* stats,
 							  float						camera_speed,
-							  float						default_camera_speed)
+							  float						default_camera_speed,
+							  float						time_of_day,
+							  float						time_speed,
+							  int						time_locked)
 {
 	ASSERT_FATAL(overlay);
 	ASSERT_FATAL(stats);
@@ -79,6 +82,9 @@ void rft_debug_overlay_update(rft_debug_overlay*		overlay,
 	overlay->gpu_time_valid					 = gpu_valid != 0;
 	overlay->camera_speed					 = camera_speed;
 	overlay->default_camera_speed			 = default_camera_speed;
+	overlay->time_of_day					 = time_of_day;
+	overlay->time_speed						 = time_speed;
+	overlay->time_locked					 = time_locked != 0;
 	overlay->streamer_stats					 = *stats;
 	overlay->frame_times[overlay->frame_idx] = dt;
 	overlay->frame_idx						 = (overlay->frame_idx + 1) % RFT_DEBUG_OVERLAY_FRAME_HISTORY_SIZE;
@@ -207,6 +213,7 @@ void rft_debug_overlay_render(rft_debug_overlay* overlay)
 	uint32_t	color		 = 0xFFFFFFFF;
 	char		buf[128];
 	const float line_height = RFT_DEBUG_LINE_HEIGHT;
+	const float day_seconds = 240.0f;
 
 	snprintf(buf, sizeof(buf), "Frame (wall): %.1f ms", (double)overlay->frame_time_ms);
 	buffer_text_right(&v_ptr, end, base_x, y, buf, color);
@@ -238,6 +245,30 @@ void rft_debug_overlay_render(rft_debug_overlay* overlay)
 	y += line_height;
 
 	snprintf(buf, sizeof(buf), "Speed keys: - / = / 0");
+	buffer_text_right(&v_ptr, end, base_x, y, buf, color);
+	y += line_height;
+
+	float day_phase = fmodf(overlay->time_of_day / day_seconds, 1.0f);
+
+	if (day_phase < 0.0f)
+	{
+		day_phase += 1.0f;
+	}
+
+	int hours = (int)(day_phase * 24.0f);
+	int mins = (int)((day_phase * 24.0f - (float)hours) * 60.0f);
+
+	snprintf(buf,
+			 sizeof(buf),
+			 "Time: %02d:%02d  speed %.2fx  %s",
+			 hours,
+			 mins,
+			 (double)overlay->time_speed,
+			 overlay->time_locked ? "locked" : "running");
+	buffer_text_right(&v_ptr, end, base_x, y, buf, color);
+	y += line_height;
+
+	snprintf(buf, sizeof(buf), "Time keys: [ ] speed, \\\\ lock, , . nudge");
 	buffer_text_right(&v_ptr, end, base_x, y, buf, color);
 	y += line_height;
 

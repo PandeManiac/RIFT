@@ -14,6 +14,9 @@ void rft_debug_overlay_update(rft_debug_overlay*		overlay,
 							  int						gpu_valid,
 							  const rft_streamer_stats* stats,
 							  float						camera_speed,
-							  float						default_camera_speed);
+							  float						default_camera_speed,
+							  float						time_of_day,
+							  float						time_speed,
+							  int						time_locked);
 
 void rft_debug_overlay_render(rft_debug_overlay* overlay);

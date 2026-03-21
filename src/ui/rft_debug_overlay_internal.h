@@ -47,6 +47,9 @@ struct rft_debug_overlay
 	bool			   gpu_time_valid;
 	float			   camera_speed;
 	float			   default_camera_speed;
+	float			   time_of_day;
+	float			   time_speed;
+	bool			   time_locked;
 	rft_streamer_stats streamer_stats;
 
 	unsigned long long prev_total_ticks;

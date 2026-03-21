@@ -1,12 +1,7 @@
 #include "engine/rft_engine.h"
 #include "engine/rft_engine_configs.h"
 
-#include "window/input/rft_input.h"
-#include "window/input/rft_input_context.h"
-#include "window/input/rft_input_map.h"
-#include "window/input/rft_player_actions.h"
-#include "window/rft_window.h"
-
+#include "render/rft_atmosphere.h"
 #include "render/rft_camera.h"
 #include "render/rft_vertex_array.h"
 #include "render/shader/rft_shader.h"
@@ -14,6 +9,12 @@
 
 #include "ui/rft_debug_overlay.h"
 #include "world/rft_streamer.h"
+
+#include "window/input/rft_input.h"
+#include "window/input/rft_input_context.h"
+#include "window/input/rft_input_map.h"
+#include "window/input/rft_player_actions.h"
+#include "window/rft_window.h"
 
 #include "utils/rft_assert.h"
 #include "utils/rft_file.h"
@@ -28,13 +29,17 @@
 
 #include <math.h>
 #include <stdbool.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define RFT_GPU_QUERY_RING_SIZE 3U
+#define RFT_DAY_CYCLE_SECONDS 240.0f
+#define RFT_FLOATING_ORIGIN_REBASE_RADIUS_CHUNKS 64
 #define RFT_CAMERA_SPEED_STEP 25.0f
 #define RFT_CAMERA_SPEED_MIN 25.0f
+#define RFT_TIME_SPEED_STEP 0.25f
+#define RFT_TIME_SPEED_MIN 0.0f
+#define RFT_TIME_NUDGE_SECONDS (RFT_DAY_CYCLE_SECONDS / 24.0f)
 #define RFT_CHUNK_SHADER_FOG_DISTANCE_LOCATION 5
 #define RFT_CHUNK_SHADER_FOG_COLOR_NEAR_LOCATION 6
 #define RFT_CHUNK_SHADER_FOG_COLOR_FAR_LOCATION 7
@@ -57,25 +62,6 @@
 #define RFT_SKY_SHADER_NIGHT_HORIZON_LOCATION 10
 #define RFT_SKY_SHADER_ATMOSPHERE_PARAMS_LOCATION 11
 
-typedef struct rft_atmosphere
-{
-	vec3s sun_dir;
-	vec3s moon_dir;
-	vec3s sun_color;
-	vec3s moon_color;
-	vec3s ambient_color;
-	vec3s fog_near;
-	vec3s fog_far;
-	vec3s day_zenith;
-	vec3s day_horizon;
-	vec3s night_zenith;
-	vec3s night_horizon;
-	float day_amount;
-	float twilight_amount;
-	float night_amount;
-	float stars_amount;
-} rft_atmosphere;
-
 typedef struct rft_post_targets
 {
 	GLuint framebuffer;
@@ -88,8 +74,11 @@ struct rft_engine
 {
 	rft_window window;
 	rft_camera camera;
+	ivec3s	   world_origin_chunk;
 	float	   default_camera_speed;
 	float	   time_of_day;
+	float	   time_speed;
+	bool	   time_locked;
 
 	rft_input_context input_ctx;
 	rft_action_map*	  player_map;
@@ -128,14 +117,16 @@ static const rft_shader_stage_desc post_stages[] = {
 	{ RFT_SHADER_STAGE_FRAGMENT, "res/shader/post.frag" },
 };
 
+static void load_block_assets(rft_texture_array* atlas);
 static void rft_engine_init(rft_engine* engine);
 static void rft_engine_shutdown(rft_engine* engine);
 static void rft_engine_frame(rft_engine* engine, float dt);
 static void rft_engine_handle_speed_input(rft_engine* engine, const rft_input* input);
+static void rft_engine_handle_time_input(rft_engine* engine, const rft_input* input);
+static void rft_engine_apply_floating_origin(rft_engine* engine);
 static void rft_post_targets_resize(rft_post_targets* targets, ivec2s size);
 static void rft_post_targets_destroy(rft_post_targets* targets);
 static void rft_engine_render_post(const rft_engine* engine);
-static rft_atmosphere rft_engine_sample_atmosphere(float time_of_day);
 static void rft_engine_render_sky(const rft_engine* engine, const rft_atmosphere* atmosphere, const mat4s* inv_view_proj);
 
 rft_engine* rft_engine_create(void)
@@ -196,113 +187,11 @@ static void load_block_assets(rft_texture_array* atlas)
 	void*  bin_data = rft_read_file("res/textures/blocks/blocks_array.bin", &bin_size);
 	ASSERT_FATAL(bin_data);
 
-	rft_texture_array_init(atlas, tile_size, tile_size, layer_count, bin_data, 1, 0);
+	rft_texture_array_init(atlas, tile_size, tile_size, layer_count, bin_data, 1, 1);
 
 	free(bin_data);
 	json_object_put(root);
 	free(json_buffer);
-}
-
-static float rft_smoothstep(float a, float b, float x)
-{
-	float t = (x - a) / (b - a);
-	t	   = fminf(fmaxf(t, 0.0f), 1.0f);
-	return t * t * (3.0f - 2.0f * t);
-}
-
-static vec3s rft_vec3_mix(vec3s a, vec3s b, float t)
-{
-	return (vec3s) {
-		{
-			a.x + (b.x - a.x) * t,
-			a.y + (b.y - a.y) * t,
-			a.z + (b.z - a.z) * t,
-		},
-	};
-}
-
-static vec3s rft_vec3_scale(vec3s v, float s)
-{
-	return (vec3s) {
-		{
-			v.x * s,
-			v.y * s,
-			v.z * s,
-		},
-	};
-}
-
-static vec3s rft_vec3_add(vec3s a, vec3s b)
-{
-	return (vec3s) {
-		{
-			a.x + b.x,
-			a.y + b.y,
-			a.z + b.z,
-		},
-	};
-}
-
-static rft_atmosphere rft_engine_sample_atmosphere(float time_of_day)
-{
-	const float cycle_seconds = 240.0f;
-	float phase = fmodf(time_of_day / cycle_seconds, 1.0f);
-	float angle = phase * glm_rad(360.0f);
-
-	vec3s sun_dir = glms_vec3_normalize((vec3s) {
-		{
-			cosf(angle),
-			sinf(angle),
-			sinf(angle * 0.37f) * 0.22f,
-		},
-	});
-	vec3s moon_dir = glms_vec3_negate(sun_dir);
-
-	float day_amount = rft_smoothstep(-0.10f, 0.24f, sun_dir.y);
-	float night_amount = 1.0f - rft_smoothstep(-0.26f, 0.02f, sun_dir.y);
-	float twilight_amount = fmaxf(0.0f, 1.0f - day_amount - night_amount);
-	float stars_amount = night_amount * night_amount;
-
-	vec3s day_zenith = { { 0.22f, 0.53f, 0.92f } };
-	vec3s day_horizon = { { 0.78f, 0.88f, 1.00f } };
-	vec3s sunset_glow = { { 1.00f, 0.50f, 0.18f } };
-	vec3s night_zenith = { { 0.02f, 0.04f, 0.10f } };
-	vec3s night_horizon = { { 0.05f, 0.08f, 0.16f } };
-
-	vec3s sun_color = rft_vec3_mix((vec3s) { { 1.00f, 0.58f, 0.30f } }, (vec3s) { { 1.00f, 0.97f, 0.90f } }, day_amount);
-	vec3s moon_color = { { 0.35f, 0.44f, 0.60f } };
-	vec3s ambient_color = rft_vec3_add(
-		rft_vec3_scale(day_horizon, 0.18f + day_amount * 0.20f),
-		rft_vec3_scale(night_horizon, 0.10f + stars_amount * 0.12f)
-	);
-	vec3s fog_near = rft_vec3_mix(
-		rft_vec3_mix(night_horizon, day_horizon, day_amount),
-		sunset_glow,
-		twilight_amount * 0.35f
-	);
-	vec3s fog_far = rft_vec3_mix(
-		rft_vec3_mix(night_zenith, day_zenith, day_amount),
-		sunset_glow,
-		twilight_amount * 0.55f
-	);
-
-	return (rft_atmosphere) {
-		.sun_dir = sun_dir,
-		.moon_dir = moon_dir,
-		.sun_color = sun_color,
-		.moon_color = moon_color,
-		.ambient_color = ambient_color,
-		.fog_near = fog_near,
-		.fog_far = fog_far,
-		.day_zenith = day_zenith,
-		.day_horizon = day_horizon,
-		.night_zenith = night_zenith,
-		.night_horizon = night_horizon,
-		.day_amount = day_amount,
-		.twilight_amount = twilight_amount,
-		.night_amount = night_amount,
-		.stars_amount = stars_amount,
-	};
 }
 
 static void rft_engine_render_sky(const rft_engine* engine, const rft_atmosphere* atmosphere, const mat4s* inv_view_proj)
@@ -320,26 +209,10 @@ static void rft_engine_render_sky(const rft_engine* engine, const rft_atmosphere
 	rft_vertex_array_bind(&engine->post_vao);
 
 	rft_shader_set_mat4(&engine->sky_shader, RFT_SKY_SHADER_INV_VIEW_PROJ_LOCATION, &inv_view_proj->raw[0][0]);
-	rft_shader_set_vec3(&engine->sky_shader,
-						RFT_SKY_SHADER_CAMERA_POS_LOCATION,
-						engine->camera.cfg.pos.x,
-						engine->camera.cfg.pos.y,
-						engine->camera.cfg.pos.z);
-	rft_shader_set_vec3(&engine->sky_shader,
-						RFT_SKY_SHADER_SUN_DIR_LOCATION,
-						atmosphere->sun_dir.x,
-						atmosphere->sun_dir.y,
-						atmosphere->sun_dir.z);
-	rft_shader_set_vec3(&engine->sky_shader,
-						RFT_SKY_SHADER_MOON_DIR_LOCATION,
-						atmosphere->moon_dir.x,
-						atmosphere->moon_dir.y,
-						atmosphere->moon_dir.z);
-	rft_shader_set_vec3(&engine->sky_shader,
-						RFT_SKY_SHADER_DAY_ZENITH_LOCATION,
-						atmosphere->day_zenith.x,
-						atmosphere->day_zenith.y,
-						atmosphere->day_zenith.z);
+	rft_shader_set_vec3(&engine->sky_shader, RFT_SKY_SHADER_CAMERA_POS_LOCATION, 0.0f, 0.0f, 0.0f);
+	rft_shader_set_vec3(&engine->sky_shader, RFT_SKY_SHADER_SUN_DIR_LOCATION, atmosphere->sun_dir.x, atmosphere->sun_dir.y, atmosphere->sun_dir.z);
+	rft_shader_set_vec3(&engine->sky_shader, RFT_SKY_SHADER_MOON_DIR_LOCATION, atmosphere->moon_dir.x, atmosphere->moon_dir.y, atmosphere->moon_dir.z);
+	rft_shader_set_vec3(&engine->sky_shader, RFT_SKY_SHADER_DAY_ZENITH_LOCATION, atmosphere->day_zenith.x, atmosphere->day_zenith.y, atmosphere->day_zenith.z);
 	rft_shader_set_vec3(&engine->sky_shader,
 						RFT_SKY_SHADER_DAY_HORIZON_LOCATION,
 						atmosphere->day_horizon.x,
@@ -511,8 +384,11 @@ static void rft_engine_init(rft_engine* engine)
 	rft_input_context_push(&engine->input_ctx, engine->player_map);
 
 	rft_camera_init(&engine->camera, &rft_default_camera_cfg);
+	engine->world_origin_chunk	 = (ivec3s) { { 0, 0, 0 } };
 	engine->default_camera_speed = rft_default_camera_cfg.speed;
-	engine->time_of_day = 42.0f;
+	engine->time_of_day			 = 42.0f;
+	engine->time_speed			 = 1.0f;
+	engine->time_locked			 = false;
 
 	rft_shader_init(&engine->chunk_shader, stages, 2);
 	rft_shader_init(&engine->sky_shader, sky_stages, 2);
@@ -571,11 +447,16 @@ static void rft_engine_frame(rft_engine* engine, float dt)
 	rft_input_update_gamepads(input);
 	rft_input_context_resolve(&engine->input_ctx, input);
 	rft_engine_handle_speed_input(engine, input);
+	rft_engine_handle_time_input(engine, input);
 	rft_camera_update(&engine->camera, engine->player_map, input, dt);
-	engine->time_of_day += dt;
+	rft_engine_apply_floating_origin(engine);
 
-	rft_streamer_update(engine->streamer, &engine->camera);
+	if (!engine->time_locked)
+	{
+		engine->time_of_day += dt * engine->time_speed;
+	}
 
+	rft_streamer_update(engine->streamer, &engine->camera, engine->world_origin_chunk);
 	rft_post_targets_resize(&engine->post_targets, engine->window.cfg.size);
 
 	glBindFramebuffer(GL_FRAMEBUFFER, engine->post_targets.framebuffer);
@@ -594,32 +475,41 @@ static void rft_engine_frame(rft_engine* engine, float dt)
 	rft_shader_bind(&engine->chunk_shader);
 	rft_vertex_array_bind(&engine->chunk_vao);
 
-	mat4s view = rft_camera_view(&engine->camera);
-	mat4s proj = rft_camera_proj(&engine->camera, (float)engine->window.cfg.size.x / (float)engine->window.cfg.size.y);
-	mat4s vp   = glms_mat4_mul(proj, view);
-	mat4s inv_view_proj = glms_mat4_inv(vp);
-	rft_atmosphere atmosphere = rft_engine_sample_atmosphere(engine->time_of_day);
-
-	glClear(GL_DEPTH_BUFFER_BIT);
-	rft_engine_render_sky(engine, &atmosphere, &inv_view_proj);
-	glEnable(GL_DEPTH_TEST);
-	glDepthMask(GL_TRUE);
-	glDepthFunc(GL_LESS);
-
-	vec4s frustum[6];
-	glms_frustum_planes(vp, frustum);
+	mat4s		   view		  = rft_camera_view(&engine->camera);
+	mat4s		   proj		  = rft_camera_proj(&engine->camera, (float)engine->window.cfg.size.x / (float)engine->window.cfg.size.y);
+	rft_atmosphere atmosphere = rft_atmosphere_sample(engine->time_of_day, RFT_DAY_CYCLE_SECONDS);
 
 	float cam_x = floorf(engine->camera.cfg.pos.x / 64.0f);
 	float cam_y = floorf(engine->camera.cfg.pos.y / 64.0f);
 	float cam_z = floorf(engine->camera.cfg.pos.z / 64.0f);
 
 	ivec3s cam_chunk = {
-		{ (int)cam_x, (int)cam_y, (int)cam_z },
+		{ engine->world_origin_chunk.x + (int)cam_x, engine->world_origin_chunk.y + (int)cam_y, engine->world_origin_chunk.z + (int)cam_z },
 	};
 
 	vec3s cam_offset = {
 		{ engine->camera.cfg.pos.x - cam_x * 64.0f, engine->camera.cfg.pos.y - cam_y * 64.0f, engine->camera.cfg.pos.z - cam_z * 64.0f },
 	};
+
+	mat4s view_rte = view;
+
+	view_rte.raw[3][0] = 0.0f;
+	view_rte.raw[3][1] = 0.0f;
+	view_rte.raw[3][2] = 0.0f;
+
+	mat4s mvp_rte		= glms_mat4_mul(proj, view_rte);
+	mat4s inv_view_proj = glms_mat4_inv(mvp_rte);
+
+	glClear(GL_DEPTH_BUFFER_BIT);
+	rft_engine_render_sky(engine, &atmosphere, &inv_view_proj);
+	glEnable(GL_DEPTH_TEST);
+	glDepthMask(GL_TRUE);
+	glDepthFunc(GL_LESS);
+	rft_shader_bind(&engine->chunk_shader);
+	rft_vertex_array_bind(&engine->chunk_vao);
+
+	vec4s frustum[6];
+	glms_frustum_planes(mvp_rte, frustum);
 
 	rft_shader_set_vec3i(&engine->chunk_shader, 3, cam_chunk.x, cam_chunk.y, cam_chunk.z);
 	rft_shader_set_vec3(&engine->chunk_shader, 4, cam_offset.x, cam_offset.y, cam_offset.z);
@@ -629,53 +519,21 @@ static void rft_engine_frame(rft_engine* engine, float dt)
 						rft_default_streamer_cfg.render_distance * 0.78f,
 						1.12f,
 						0.0f);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_FOG_COLOR_NEAR_LOCATION,
-						atmosphere.fog_near.x,
-						atmosphere.fog_near.y,
-						atmosphere.fog_near.z);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_FOG_COLOR_FAR_LOCATION,
-						atmosphere.fog_far.x,
-						atmosphere.fog_far.y,
-						atmosphere.fog_far.z);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_FOG_COLOR_NEAR_LOCATION, atmosphere.fog_near.x, atmosphere.fog_near.y, atmosphere.fog_near.z);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_FOG_COLOR_FAR_LOCATION, atmosphere.fog_far.x, atmosphere.fog_far.y, atmosphere.fog_far.z);
 	rft_shader_set_vec4(&engine->chunk_shader, RFT_CHUNK_SHADER_FOG_FRINGE_LOCATION, 0.62f, 1.20f, 1.10f, 0.34f);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_SUN_DIR_LOCATION,
-						atmosphere.sun_dir.x,
-						atmosphere.sun_dir.y,
-						atmosphere.sun_dir.z);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_SUN_COLOR_LOCATION,
-						atmosphere.sun_color.x,
-						atmosphere.sun_color.y,
-						atmosphere.sun_color.z);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_SUN_DIR_LOCATION, atmosphere.sun_dir.x, atmosphere.sun_dir.y, atmosphere.sun_dir.z);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_SUN_COLOR_LOCATION, atmosphere.sun_color.x, atmosphere.sun_color.y, atmosphere.sun_color.z);
 	rft_shader_set_vec3(&engine->chunk_shader,
 						RFT_CHUNK_SHADER_AMBIENT_COLOR_LOCATION,
 						atmosphere.ambient_color.x,
 						atmosphere.ambient_color.y,
 						atmosphere.ambient_color.z);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_MOON_DIR_LOCATION,
-						atmosphere.moon_dir.x,
-						atmosphere.moon_dir.y,
-						atmosphere.moon_dir.z);
-	rft_shader_set_vec3(&engine->chunk_shader,
-						RFT_CHUNK_SHADER_MOON_COLOR_LOCATION,
-						atmosphere.moon_color.x,
-						atmosphere.moon_color.y,
-						atmosphere.moon_color.z);
-
-	mat4s view_rte = view;
-
-	view_rte.raw[3][0] = 0.0f;
-	view_rte.raw[3][1] = 0.0f;
-	view_rte.raw[3][2] = 0.0f;
-
-	mat4s mvp_rte = glms_mat4_mul(proj, view_rte);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_MOON_DIR_LOCATION, atmosphere.moon_dir.x, atmosphere.moon_dir.y, atmosphere.moon_dir.z);
+	rft_shader_set_vec3(&engine->chunk_shader, RFT_CHUNK_SHADER_MOON_COLOR_LOCATION, atmosphere.moon_color.x, atmosphere.moon_color.y, atmosphere.moon_color.z);
 
 	rft_shader_set_mat4(&engine->chunk_shader, 0, &mvp_rte.raw[0][0]);
-	rft_streamer_render(engine->streamer, &engine->camera, frustum, engine->chunk_shader.program);
+	rft_streamer_render(engine->streamer, cam_chunk, cam_offset, frustum, engine->chunk_shader.program);
 
 	glEndQuery(GL_TIME_ELAPSED);
 
@@ -704,7 +562,10 @@ static void rft_engine_frame(rft_engine* engine, float dt)
 							 engine->gpu_time_valid ? 1 : 0,
 							 &engine->streamer_stats,
 							 engine->camera.cfg.speed,
-							 engine->default_camera_speed);
+							 engine->default_camera_speed,
+							 engine->time_of_day,
+							 engine->time_speed,
+							 engine->time_locked ? 1 : 0);
 
 	rft_engine_render_post(engine);
 	rft_debug_overlay_render(engine->debug_overlay);
@@ -731,4 +592,80 @@ static void rft_engine_handle_speed_input(rft_engine* engine, const rft_input* i
 	{
 		engine->camera.cfg.speed = engine->default_camera_speed;
 	}
+}
+
+static void rft_engine_handle_time_input(rft_engine* engine, const rft_input* input)
+{
+	ASSERT_FATAL(engine);
+	ASSERT_FATAL(input);
+
+	if (rft_input_pressed(input, RFT_INPUT_KEY, GLFW_KEY_LEFT_BRACKET))
+	{
+		engine->time_speed = fmaxf(RFT_TIME_SPEED_MIN, engine->time_speed - RFT_TIME_SPEED_STEP);
+	}
+
+	if (rft_input_pressed(input, RFT_INPUT_KEY, GLFW_KEY_RIGHT_BRACKET))
+	{
+		engine->time_speed += RFT_TIME_SPEED_STEP;
+	}
+
+	if (rft_input_pressed(input, RFT_INPUT_KEY, GLFW_KEY_BACKSLASH))
+	{
+		engine->time_locked = !engine->time_locked;
+	}
+
+	if (rft_input_pressed(input, RFT_INPUT_KEY, GLFW_KEY_COMMA))
+	{
+		engine->time_of_day -= RFT_TIME_NUDGE_SECONDS;
+	}
+
+	if (rft_input_pressed(input, RFT_INPUT_KEY, GLFW_KEY_PERIOD))
+	{
+		engine->time_of_day += RFT_TIME_NUDGE_SECONDS;
+	}
+
+	engine->time_of_day = fmodf(engine->time_of_day, RFT_DAY_CYCLE_SECONDS);
+
+	if (engine->time_of_day < 0.0f)
+	{
+		engine->time_of_day += RFT_DAY_CYCLE_SECONDS;
+	}
+}
+
+static void rft_engine_apply_floating_origin(rft_engine* engine)
+{
+	ASSERT_FATAL(engine);
+
+	int chunk_x = (int)(engine->camera.cfg.pos.x / 64.0f);
+	int chunk_y = (int)(engine->camera.cfg.pos.y / 64.0f);
+	int chunk_z = (int)(engine->camera.cfg.pos.z / 64.0f);
+
+	if (engine->camera.cfg.pos.x < 0.0f && fabsf(fmodf(engine->camera.cfg.pos.x, 64.0f)) > 1e-6f)
+	{
+		chunk_x--;
+	}
+
+	if (engine->camera.cfg.pos.y < 0.0f && fabsf(fmodf(engine->camera.cfg.pos.y, 64.0f)) > 1e-6f)
+	{
+		chunk_y--;
+	}
+
+	if (engine->camera.cfg.pos.z < 0.0f && fabsf(fmodf(engine->camera.cfg.pos.z, 64.0f)) > 1e-6f)
+	{
+		chunk_z--;
+	}
+
+	if (abs(chunk_x) < RFT_FLOATING_ORIGIN_REBASE_RADIUS_CHUNKS && abs(chunk_y) < RFT_FLOATING_ORIGIN_REBASE_RADIUS_CHUNKS &&
+		abs(chunk_z) < RFT_FLOATING_ORIGIN_REBASE_RADIUS_CHUNKS)
+	{
+		return;
+	}
+
+	engine->world_origin_chunk.x += chunk_x;
+	engine->world_origin_chunk.y += chunk_y;
+	engine->world_origin_chunk.z += chunk_z;
+
+	engine->camera.cfg.pos.x -= (float)(chunk_x * 64);
+	engine->camera.cfg.pos.y -= (float)(chunk_y * 64);
+	engine->camera.cfg.pos.z -= (float)(chunk_z * 64);
 }

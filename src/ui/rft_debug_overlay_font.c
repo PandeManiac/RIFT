@@ -123,6 +123,7 @@ GLuint rft_debug_overlay_create_font_texture(void)
 		for (int x = 0; x < 5; ++x)
 		{
 			uint8_t col = rft_debug_overlay_font5x7[i][x];
+
 			for (int y = 0; y < 7; ++y)
 			{
 				if ((col & (1 << y)) != 0)
